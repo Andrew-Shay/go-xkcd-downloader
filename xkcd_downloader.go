@@ -40,7 +40,6 @@ func getImage(downloadUrl string) (image XKCDImage, err bool) {
 	}
 
 	for _, line := range strings.Split(body, "\n") {
-
 		if strings.HasPrefix(line, "Permanent link to this comic:") {
 			var pageLink string = line[30:len(line)-6]
 			image.Number = pageLink[17:len(pageLink)-1]
@@ -54,7 +53,6 @@ func getImage(downloadUrl string) (image XKCDImage, err bool) {
 
 			if originalFileName == "" {
 				err = true
-				break
 			}
 			break
 		}
@@ -74,7 +72,6 @@ func downloadImage(image XKCDImage) {
 
 //Downloads all XKCD Comics
 func downloadComics(startComic string) (failedComics []XKCDImage, downloadCount int) {
-
 	currentComicNumber, _ := strconv.Atoi(startComic)
 	for ; currentComicNumber != 0; currentComicNumber-- {
 		currentURL := XKCDURL + strconv.Itoa(currentComicNumber)
