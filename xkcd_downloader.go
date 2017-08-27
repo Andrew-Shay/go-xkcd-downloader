@@ -29,29 +29,29 @@ func (image *XKCDImage) GetFileName() string {
 }
 
 //Returns an XKCDImage by parsing the HTML of an XKCD comic
-func getImage(downloadUrl string) (XKCDImage, bool) {
+func getImage(downloadUrl string) (image XKCDImage, err bool) {
+	image.PageUrl = downloadUrl
 	resp, body, _ := gorequest.New().Get(downloadUrl).End()
 
 	statusCode := strconv.Itoa(resp.StatusCode)
 	if string(statusCode[0]) != "2" {
-		return XKCDImage{PageUrl: downloadUrl}, true
+		err = true
+		return image, err
 	}
-
-	var pageLink string
-	var imageLink string
-	var number string
-	var originalFileName string
-	var err bool
 
 	for _, line := range strings.Split(body, "\n") {
 
 		if strings.HasPrefix(line, "Permanent link to this comic:") {
-			pageLink = line[30:len(line)-6]
-			number = pageLink[17:len(pageLink)-1]
+			var pageLink string = line[30:len(line)-6]
+			image.Number = pageLink[17:len(pageLink)-1]
 		} else if strings.HasPrefix(line, "Image URL (for hotlinking/embedding):") {
-			imageLink = line[38:]
+			var imageLink string = line[38:]
+			image.Url = imageLink
+
 			split := strings.Split(imageLink, "/")
-			originalFileName = split[len(split)-1]
+			var originalFileName string = split[len(split)-1]
+			image.OriginalFileName = originalFileName
+
 			if originalFileName == "" {
 				err = true
 				break
@@ -60,7 +60,7 @@ func getImage(downloadUrl string) (XKCDImage, bool) {
 		}
 	}
 
-	return XKCDImage{Number: number, Url: imageLink, OriginalFileName: originalFileName, PageUrl: downloadUrl}, err
+	return image, err
 }
 
 //Downloads an XKCD comic
@@ -73,9 +73,7 @@ func downloadImage(image XKCDImage) {
 }
 
 //Downloads all XKCD Comics
-func downloadComics(startComic string) ([]XKCDImage, int) {
-	var downloadCount int
-	var failedComics []XKCDImage
+func downloadComics(startComic string) (failedComics []XKCDImage, downloadCount int) {
 
 	currentComicNumber, _ := strconv.Atoi(startComic)
 	for ; currentComicNumber != 0; currentComicNumber-- {
