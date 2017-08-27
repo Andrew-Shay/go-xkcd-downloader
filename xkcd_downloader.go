@@ -7,10 +7,13 @@ import (
 	"strconv"
 	"strings"
 
+	"path/filepath"
+
 	"github.com/parnurzeal/gorequest"
 )
 
 var XKCDURL string = "https://xkcd.com/"
+var IMAGEDIR string = "images"
 
 //Represents the information for an XKCD comic
 type XKCDImage struct {
@@ -64,10 +67,9 @@ func getImage(downloadUrl string) (XKCDImage, bool) {
 func downloadImage(image XKCDImage) {
 	_, imageBody, _ := gorequest.New().Get(image.Url).End()
 	imgBytes := strings.NewReader(imageBody)
-	img, _ := os.Create(image.GetFileName())
+	img, _ := os.Create(getDownloadPath(image))
 	defer img.Close()
 	io.Copy(img, imgBytes)
-
 }
 
 //Downloads all XKCD Comics
@@ -86,7 +88,7 @@ func downloadComics(startComic string) ([]XKCDImage, int) {
 			failedComics = append(failedComics, currentImage)
 		} else {
 			fileName := currentImage.GetFileName()
-			if _, err := os.Stat(fileName); os.IsNotExist(err) {
+			if _, err := os.Stat(getDownloadPath(currentImage)); os.IsNotExist(err) {
 				downloadImage(currentImage)
 				fmt.Printf("\tDownloaded %v\n", fileName)
 				downloadCount++
@@ -100,6 +102,11 @@ func downloadComics(startComic string) ([]XKCDImage, int) {
 	return failedComics, downloadCount
 }
 
+//Return path to save image
+func getDownloadPath(image XKCDImage) string {
+	return filepath.Join(IMAGEDIR, image.GetFileName())
+}
+
 //Prints failed comics
 func printFailed(failedComics *[]XKCDImage) {
 	if len(*failedComics) > 0 {
@@ -110,7 +117,13 @@ func printFailed(failedComics *[]XKCDImage) {
 	}
 }
 
+//Create directory to save images
+func createImageDir() {
+	os.Mkdir(IMAGEDIR, os.ModeDir)
+}
+
 func main() {
+	createImageDir()
 
 	// Get first image to determine start number/url
 	firstImage, _ := getImage(XKCDURL)
