@@ -8,7 +8,7 @@ Running the program will download all the XKCD comics into the directory "images
 and will stop once an image has already been downloaded.
 
 # Requirements
-`https://github.com/parnurzeal/gorequest`
+[https://github.com/parnurzeal/gorequest](https://github.com/parnurzeal/gorequest)
 
 # License
 MIT
