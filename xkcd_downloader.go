@@ -15,7 +15,7 @@ import (
 
 var XKCDURL string = "https://xkcd.com/"
 var IMAGEDIR string = "images"
-var CONCURRENTDOWNLOADS int = 5
+var CONCURRENTDOWNLOADS int = 10
 var COMICEND int = 0 //Comic number to stop at - Default 0, doesn't exist
 
 //Represents the information for an XKCD comic
@@ -125,7 +125,6 @@ func downloadComics(startComic string) (failedComics []XKCDImage, downloadCount 
 				downloadCount++
 			}else if response == 1 {
 				currentComicNumber = COMICEND
-				break
 			}
 		}
 	}
