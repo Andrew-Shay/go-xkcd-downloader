@@ -10,12 +10,13 @@ import (
 	"path/filepath"
 
 	"github.com/parnurzeal/gorequest"
+	"sync"
 )
 
 var XKCDURL string = "https://xkcd.com/"
 var IMAGEDIR string = "images"
 var CONCURRENTDOWNLOADS int = 5
-var COMICEND int = 1850 //Comic number to stop at - Default 0, doesn't exist
+var COMICEND int = 0 //Comic number to stop at - Default 0, doesn't exist
 
 //Represents the information for an XKCD comic
 type XKCDImage struct {
@@ -73,13 +74,15 @@ func downloadImage(image XKCDImage) {
 }
 
 //Downloads a single comic in a routine
-func downloadSingleComic(currentComicNumber int, failedComics *[]XKCDImage, c chan int) {
+func downloadSingleComic(currentComicNumber int, failedComics *[]XKCDImage, c chan int, failedMux *sync.Mutex) {
 	currentURL := XKCDURL + strconv.Itoa(currentComicNumber)
 	currentImage, err := getImage(currentURL)
 
 	if err {
+		failedMux.Lock()
 		fmt.Printf("%v\n\t!!!! Failed to download\n", currentURL)
 		*failedComics = append(*failedComics, currentImage)
+		failedMux.Unlock()
 		c <- 3
 	} else {
 		fileName := currentImage.GetFileName()
@@ -98,16 +101,17 @@ func downloadSingleComic(currentComicNumber int, failedComics *[]XKCDImage, c ch
 func downloadComics(startComic string) (failedComics []XKCDImage, downloadCount int) {
 	currentComicNumber, _ := strconv.Atoi(startComic)
 
+	failedMux := sync.Mutex{}
 	downloadChannel := make(chan int)
 	for ; currentComicNumber > COMICEND; {
 
 		//Start downloads
 		runningRoutines := 0
 		for i := 0; i < CONCURRENTDOWNLOADS; i++ {
-			go downloadSingleComic(currentComicNumber, &failedComics, downloadChannel)
+			go downloadSingleComic(currentComicNumber, &failedComics, downloadChannel, &failedMux)
 			currentComicNumber--
 			runningRoutines++
-			
+
 			if currentComicNumber <= COMICEND {
 				break
 			}
