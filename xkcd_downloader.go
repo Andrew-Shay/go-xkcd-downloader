@@ -14,6 +14,8 @@ import (
 
 var XKCDURL string = "https://xkcd.com/"
 var IMAGEDIR string = "images"
+var CONCURRENTDOWNLOADS int = 5
+var COMICEND int = 1850 //Comic number to stop at - Default 0, doesn't exist
 
 //Represents the information for an XKCD comic
 type XKCDImage struct {
@@ -70,6 +72,7 @@ func downloadImage(image XKCDImage) {
 	io.Copy(img, imgBytes)
 }
 
+//Downloads a single comic in a routine
 func downloadSingleComic(currentComicNumber int, failedComics *[]XKCDImage, c chan int) {
 	currentURL := XKCDURL + strconv.Itoa(currentComicNumber)
 	currentImage, err := getImage(currentURL)
@@ -96,23 +99,33 @@ func downloadComics(startComic string) (failedComics []XKCDImage, downloadCount 
 	currentComicNumber, _ := strconv.Atoi(startComic)
 
 	downloadChannel := make(chan int)
-	for ;currentComicNumber > 0; {
-		go downloadSingleComic(currentComicNumber, &failedComics, downloadChannel)
-		currentComicNumber--
-		go downloadSingleComic(currentComicNumber, &failedComics, downloadChannel)
-		currentComicNumber--
-		go downloadSingleComic(currentComicNumber, &failedComics, downloadChannel)
-		currentComicNumber--
-		go downloadSingleComic(currentComicNumber, &failedComics, downloadChannel)
-		currentComicNumber--
-		go downloadSingleComic(currentComicNumber, &failedComics, downloadChannel)
-		currentComicNumber--
-		a, b, c, d ,e := <-downloadChannel,<-downloadChannel,<-downloadChannel,<-downloadChannel,<-downloadChannel
+	for ; currentComicNumber > COMICEND; {
 
-		if a == 1 || b == 1 || c == 1 || d == 1 || e == 1 {
-			break
+		//Start downloads
+		runningRoutines := 0
+		for i := 0; i < CONCURRENTDOWNLOADS; i++ {
+			go downloadSingleComic(currentComicNumber, &failedComics, downloadChannel)
+			currentComicNumber--
+			runningRoutines++
+			
+			if currentComicNumber <= COMICEND {
+				break
+			}
+
+		}
+
+		//Receive downloads responses
+		for i := 0; i < runningRoutines; i++ {
+			response := <-downloadChannel
+			if response == 0 {
+				downloadCount++
+			}else if response == 1 {
+				currentComicNumber = COMICEND
+				break
+			}
 		}
 	}
+	close(downloadChannel)
 
 	return failedComics, downloadCount
 }
