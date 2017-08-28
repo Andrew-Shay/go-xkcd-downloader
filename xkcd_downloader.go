@@ -10,10 +10,13 @@ import (
 	"path/filepath"
 
 	"github.com/parnurzeal/gorequest"
+	"sync"
 )
 
 var XKCDURL string = "https://xkcd.com/"
 var IMAGEDIR string = "images"
+var CONCURRENTDOWNLOADS int = 10
+var COMICEND int = 0 //Comic number to stop at - Default 0, doesn't exist
 
 //Represents the information for an XKCD comic
 type XKCDImage struct {
@@ -70,29 +73,62 @@ func downloadImage(image XKCDImage) {
 	io.Copy(img, imgBytes)
 }
 
+//Downloads a single comic in a routine
+func downloadSingleComic(currentComicNumber int, failedComics *[]XKCDImage, c chan int, failedMux *sync.Mutex) {
+	currentURL := XKCDURL + strconv.Itoa(currentComicNumber)
+	currentImage, err := getImage(currentURL)
+
+	if err {
+		failedMux.Lock()
+		fmt.Printf("%v\n\t!!!! Failed to download\n", currentURL)
+		*failedComics = append(*failedComics, currentImage)
+		failedMux.Unlock()
+		c <- 3
+	} else {
+		fileName := currentImage.GetFileName()
+		if _, err := os.Stat(getDownloadPath(currentImage)); os.IsNotExist(err) {
+			downloadImage(currentImage)
+			fmt.Printf("%v\n\tDownloaded %v\n", currentURL, fileName)
+			c <- 0
+		} else {
+			fmt.Printf("%v\n\t%v Already exists. Stopping.\n", currentURL, fileName)
+			c <- 1
+		}
+	}
+}
+
 //Downloads all XKCD Comics
 func downloadComics(startComic string) (failedComics []XKCDImage, downloadCount int) {
 	currentComicNumber, _ := strconv.Atoi(startComic)
-	for ; currentComicNumber != 0; currentComicNumber-- {
-		currentURL := XKCDURL + strconv.Itoa(currentComicNumber)
-		fmt.Println(currentURL)
-		currentImage, err := getImage(currentURL)
 
-		if err {
-			fmt.Printf("\t!!!! Failed to download\n")
-			failedComics = append(failedComics, currentImage)
-		} else {
-			fileName := currentImage.GetFileName()
-			if _, err := os.Stat(getDownloadPath(currentImage)); os.IsNotExist(err) {
-				downloadImage(currentImage)
-				fmt.Printf("\tDownloaded %v\n", fileName)
-				downloadCount++
-			} else {
-				fmt.Printf("\t%v Already exists. Stopping.\n", fileName)
+	failedMux := sync.Mutex{}
+	downloadChannel := make(chan int)
+	for ; currentComicNumber > COMICEND; {
+
+		//Start downloads
+		runningRoutines := 0
+		for i := 0; i < CONCURRENTDOWNLOADS; i++ {
+			go downloadSingleComic(currentComicNumber, &failedComics, downloadChannel, &failedMux)
+			currentComicNumber--
+			runningRoutines++
+
+			if currentComicNumber <= COMICEND {
 				break
+			}
+
+		}
+
+		//Receive downloads responses
+		for i := 0; i < runningRoutines; i++ {
+			response := <-downloadChannel
+			if response == 0 {
+				downloadCount++
+			}else if response == 1 {
+				currentComicNumber = COMICEND
 			}
 		}
 	}
+	close(downloadChannel)
 
 	return failedComics, downloadCount
 }
