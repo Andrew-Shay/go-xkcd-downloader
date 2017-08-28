@@ -70,27 +70,47 @@ func downloadImage(image XKCDImage) {
 	io.Copy(img, imgBytes)
 }
 
+func downloadSingleComic(currentComicNumber int, failedComics *[]XKCDImage, c chan int) {
+	currentURL := XKCDURL + strconv.Itoa(currentComicNumber)
+	currentImage, err := getImage(currentURL)
+
+	if err {
+		fmt.Printf("%v\n\t!!!! Failed to download\n", currentURL)
+		*failedComics = append(*failedComics, currentImage)
+		c <- 3
+	} else {
+		fileName := currentImage.GetFileName()
+		if _, err := os.Stat(getDownloadPath(currentImage)); os.IsNotExist(err) {
+			downloadImage(currentImage)
+			fmt.Printf("%v\n\tDownloaded %v\n", currentURL, fileName)
+			c <- 0
+		} else {
+			fmt.Printf("%v\n\t%v Already exists. Stopping.\n", currentURL, fileName)
+			c <- 1
+		}
+	}
+}
+
 //Downloads all XKCD Comics
 func downloadComics(startComic string) (failedComics []XKCDImage, downloadCount int) {
 	currentComicNumber, _ := strconv.Atoi(startComic)
-	for ; currentComicNumber != 0; currentComicNumber-- {
-		currentURL := XKCDURL + strconv.Itoa(currentComicNumber)
-		fmt.Println(currentURL)
-		currentImage, err := getImage(currentURL)
 
-		if err {
-			fmt.Printf("\t!!!! Failed to download\n")
-			failedComics = append(failedComics, currentImage)
-		} else {
-			fileName := currentImage.GetFileName()
-			if _, err := os.Stat(getDownloadPath(currentImage)); os.IsNotExist(err) {
-				downloadImage(currentImage)
-				fmt.Printf("\tDownloaded %v\n", fileName)
-				downloadCount++
-			} else {
-				fmt.Printf("\t%v Already exists. Stopping.\n", fileName)
-				break
-			}
+	downloadChannel := make(chan int)
+	for ;currentComicNumber > 0; {
+		go downloadSingleComic(currentComicNumber, &failedComics, downloadChannel)
+		currentComicNumber--
+		go downloadSingleComic(currentComicNumber, &failedComics, downloadChannel)
+		currentComicNumber--
+		go downloadSingleComic(currentComicNumber, &failedComics, downloadChannel)
+		currentComicNumber--
+		go downloadSingleComic(currentComicNumber, &failedComics, downloadChannel)
+		currentComicNumber--
+		go downloadSingleComic(currentComicNumber, &failedComics, downloadChannel)
+		currentComicNumber--
+		a, b, c, d ,e := <-downloadChannel,<-downloadChannel,<-downloadChannel,<-downloadChannel,<-downloadChannel
+
+		if a == 1 || b == 1 || c == 1 || d == 1 || e == 1 {
+			break
 		}
 	}
 
